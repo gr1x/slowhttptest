@@ -42,6 +42,11 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <random>
+#include <algorithm>
+#include <iostream>
+#include <iterator>
+
 
 #include "range-generator.h"
 #include "slowlog.h"
@@ -109,6 +114,9 @@ static const char body_separator[] = "=";
 
 static const char crlf[] = "\r\n";
 static const char peer_closed[] = "Peer closed connection";
+
+static std::string const default_chars = 
+    "abcdefghijklmnaoqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
 
 }  // namespace
 
@@ -199,6 +207,17 @@ bool SlowHTTPTest::change_fd_limits() {
   return true;
 }
 
+std::string SlowHTTPTest::random_string(size_t len = 10, std::string const &allowed_chars = default_chars) {
+    std::mt19937_64 gen { std::random_device()() };
+
+    std::uniform_int_distribution<size_t> dist { 0, allowed_chars.length()-1 };
+
+    std::string ret;
+
+    std::generate_n(std::back_inserter(ret), len, [&] { return allowed_chars[dist(gen)]; });
+    return ret;
+}
+
 const char* SlowHTTPTest::get_random_extra() {
   random_extra_.clear();
   random_extra_.append(prefix_);
@@ -213,7 +232,7 @@ const char* SlowHTTPTest::get_random_extra() {
 
 bool SlowHTTPTest::init(const char* url, const char* verb,
     const char* path, const char* proxy,
-    const char* content_type, const char* accept) {
+    const char* content_type, const char* host_header, const char* accept) {
   if(!change_fd_limits()) {
     slowlog(LOG_INFO, "error setting open file limits\n");
     
@@ -317,8 +336,11 @@ bool SlowHTTPTest::init(const char* url, const char* verb,
     request_.append(base_uri_.getPath());
   request_.append(" HTTP/1.1\r\n");
   request_.append("Host: ");
-  request_.append(base_uri_.getHost());
-
+  if(strlen(host_header)) {
+    request_.append(host_header);
+  } else {   
+    request_.append(base_uri_.getHost());
+  }
   if(base_uri_.getPort() != 80 && base_uri_.getPort() != 443) {
     request_.append(":");
     std::stringstream ss;
@@ -917,8 +939,11 @@ bool SlowHTTPTest::run_test() {
           if(FD_ISSET(sock_[i]->get_sockfd(), &writefds)) { // write
 #endif
             if(sock_[i]->get_requests_to_send() > 0) {
-              ret = sock_[i]->send_slow(request_.c_str(),
-                  request_.size());
+              std::string str_request = request_;
+              std::string pattern = "QUERY_STR";
+              str_request.replace(str_request.find(pattern), pattern.length(), random_string(7));
+              ret = sock_[i]->send_slow(str_request.c_str(),
+                  str_request.size());
               if(ret <= 0 && errno != EAGAIN) {
                 sock_[i]->set_state(eClosed);
                 slowlog(LOG_DEBUG,

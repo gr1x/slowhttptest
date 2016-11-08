@@ -147,6 +147,7 @@ int main(int argc, char **argv) {
   char proxy[1024] = { 0 };
   char verb[16] = { 0 };
   char content_type[1024] = { 0 };
+  char host_header[1024] = { 0 };
   char accept[1024] = { 0 };
   // default values
   int conn_cnt            = 50;
@@ -169,7 +170,7 @@ int main(int argc, char **argv) {
   ProxyType proxy_type = slowhttptest::eNoProxy;
   long tmp;
   int o;
-  while((o = getopt(argc, argv, ":HBRXgha:b:c:d:e:f:i:k:l:m:n:o:p:r:s:t:u:v:w:x:y:z:")) != -1) {
+  while((o = getopt(argc, argv, ":HBRXgha:b:c:d:e:f:i:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:")) != -1) {
     switch (o) {
       case 'a':
         if(!parse_int(range_start, 65539))
@@ -243,6 +244,9 @@ int main(int argc, char **argv) {
         if(!parse_int(probe_interval))
           return -1;
         break;
+      case 'q':
+        strncpy(host_header, optarg, 1023);
+        break;
       case 'r':
         if(!parse_int(rate))
           return -1;
@@ -311,11 +315,12 @@ int main(int argc, char **argv) {
   slowlog_init(debug_level, NULL);
   UNIQUE_PTR<SlowHTTPTest> slow_test(
       new SlowHTTPTest(rate, duration, interval,
-      conn_cnt, max_random_data_len, content_length,
+      conn_cnt, max_random_data_len, content_length, 
       type, need_stats, pipeline_factor, probe_interval,
       range_start, range_limit, read_interval, read_len,
       window_lower_limit, window_upper_limit, proxy_type, debug_level));
-  if(!slow_test->init(url, verb, path, proxy, content_type, accept)) {
+  if(!slow_test->init(url, verb, path, proxy, content_type, host_header, 
+    accept)) {
     slowlog(LOG_FATAL, "%s: error setting up slow HTTP test\n", __FUNCTION__);
     return -1;
   } else if(!slow_test->run_test()) {

@@ -77,13 +77,14 @@ class SlowHTTPTest {
 
   bool init(const char* url, const char* verb,
     const char* path, const char* proxy,
-    const char* content_type, const char* accept);
+    const char* content_type, const char* host_header, 
+    const char* accept);
   void report_parameters();
   void report_status(bool to_csv);
   void report_csv();
   void report_final();
   bool run_test();
-
+  std::string random_string(size_t len, std::string const &allowed_chars );
  private:
   void close_sock(int id);
   bool change_fd_limits();
